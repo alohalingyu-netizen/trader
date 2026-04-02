@@ -1,0 +1,11 @@
+tushare:
+  token: "你的tushare_token"
+  cache_db: data/cache.db
+  rate_limit_per_min: 200
+
+mysql:
+  host: localhost
+  port: 3306
+  user: root
+  password: ""
+  database: evolving_trader
