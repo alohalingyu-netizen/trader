@@ -1,37 +1,19 @@
 """Configuration management for Evolving Trader.
 
 Loads settings from a YAML file with environment variable overrides.
-API keys MUST come from environment variables, never from the YAML file.
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class ConfigValidationError(ValueError):
     """Raised when required configuration fields are missing or invalid."""
-
-
-class AgentConfig(BaseModel):
-    model: str = "deepseek/deepseek-chat"
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0)
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
-
-
-class LLMConfig(BaseModel):
-    model: str = "deepseek/deepseek-chat"
-    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=4096, gt=0)
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
 
 
 class TushareConfig(BaseModel):
@@ -48,58 +30,15 @@ class MySQLConfig(BaseModel):
     database: str = "evolving_trader"
 
 
-class RiskConfig(BaseModel):
-    max_position_pct: float = Field(default=0.30, gt=0.0, le=1.0)
-    max_drawdown_pct: float = Field(default=0.15, gt=0.0, le=1.0)
-    stop_loss_pct: float = Field(default=0.08, gt=0.0, le=1.0)
-    take_profit_pct: float = Field(default=0.20, gt=0.0, le=1.0)
-    max_open_positions: int = Field(default=5, gt=0)
-
-
-class NotificationConfig(BaseModel):
-    enabled: bool = False
-
-
-class StockPoolConfig(BaseModel):
-    mode: str = Field(default="index", description="index or custom")
-    index_codes: List[str] = Field(
-        default_factory=lambda: ["000300.SH", "000905.SH"],
-        description="Index codes for index mode",
-    )
-    custom_list: List[str] = Field(
-        default_factory=list,
-        description="Custom stock list for custom mode",
-    )
-
-
 class Config(BaseModel):
-    llm: LLMConfig
     tushare: TushareConfig
-    risk: RiskConfig
     mysql: MySQLConfig = Field(default_factory=MySQLConfig)
-    notification: NotificationConfig = Field(default_factory=NotificationConfig)
-    stock_pool: StockPoolConfig = Field(default_factory=StockPoolConfig)
-    agents: Dict[str, AgentConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
     def _apply_env_overrides(cls, values: dict) -> dict:
         """Apply environment variable overrides to raw config dict."""
-        # LLM overrides
-        llm = values.setdefault("llm", {})
-        if v := os.environ.get("EVOLVING_TRADER_LLM_MODEL"):
-            llm["model"] = v
-        if v := os.environ.get("EVOLVING_TRADER_LLM_TEMPERATURE"):
-            llm["temperature"] = float(v)
-        if v := os.environ.get("EVOLVING_TRADER_LLM_MAX_TOKENS"):
-            llm["max_tokens"] = int(v)
-        # API keys: pick up from standard env vars per provider
-        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"):
-            if v := os.environ.get(key):
-                llm.setdefault("api_key", v)
-                break
-
-        # Tushare token — MUST come from env var
+        # Tushare token
         tushare = values.setdefault("tushare", {})
         if v := os.environ.get("TUSHARE_TOKEN"):
             tushare["token"] = v
@@ -131,19 +70,9 @@ class Config(BaseModel):
         with config_path.open("r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or {}
 
-        # Expand agents with fallback to global llm defaults
-        global_llm = raw.get("llm", {})
-        agents_raw = raw.get("agents", {})
-        for agent_name, agent_cfg in agents_raw.items():
-            for key in ("model", "temperature", "max_tokens"):
-                if key not in agent_cfg or agent_cfg[key] is None:
-                    agent_cfg[key] = global_llm.get(key)
-        raw["agents"] = agents_raw
-
         try:
             return cls.model_validate(raw)
         except Exception as exc:
-            # Wrap pydantic errors to provide a clearer message
             missing = []
             if "tushare" in str(exc) and "token" in str(exc):
                 missing.append("TUSHARE_TOKEN (set env var)")
