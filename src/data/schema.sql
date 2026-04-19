@@ -270,3 +270,21 @@ CREATE TABLE IF NOT EXISTS daily_info (
     exchange        VARCHAR(10)   COMMENT '交易所',
     PRIMARY KEY (trade_date, ts_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='沪深市场每日交易统计';
+
+-- ------------------------------------------------------------
+-- 12. stock_technical_indicators  股票技术指标
+--     计算并存储的技术指标（移动平均线等）
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS stock_technical_indicators (
+    ts_code         VARCHAR(20)   NOT NULL COMMENT 'TS代码',
+    trade_date      CHAR(8)       NOT NULL COMMENT '交易日期',
+    ma5             DOUBLE        COMMENT '5日均线',
+    ma7             DOUBLE        COMMENT '7日均线',
+    ma10            DOUBLE        COMMENT '10日均线',
+    ma17            DOUBLE        COMMENT '17日均线',
+    ma30            DOUBLE        COMMENT '30日均线',
+    ma60            DOUBLE        COMMENT '60日均线',
+    ma250           DOUBLE        COMMENT '250日均线',
+    PRIMARY KEY (ts_code, trade_date),
+    INDEX idx_trade_date (trade_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股票技术指标';

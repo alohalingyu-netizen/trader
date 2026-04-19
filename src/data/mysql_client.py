@@ -78,6 +78,31 @@ class MySQLClient:
                 total += result.rowcount
         return total
 
+    def insert_or_replace(self, table: str, df: pd.DataFrame, batch_size: int = 2000) -> int:
+        """Bulk REPLACE INTO *table* from DataFrame. Returns rows written."""
+        if df.empty:
+            return 0
+
+        cols = ", ".join(f"`{c}`" for c in df.columns)
+        placeholders = ", ".join(f":{c}" for c in df.columns)
+        sql = f"REPLACE INTO `{table}` ({cols}) VALUES ({placeholders})"
+
+        import math
+        import numpy as np
+
+        records = df.replace({np.nan: None}).to_dict("records")
+        for rec in records:
+            for k, v in rec.items():
+                if isinstance(v, float) and math.isnan(v):
+                    rec[k] = None
+        total = 0
+        with self._engine.begin() as conn:
+            for i in range(0, len(records), batch_size):
+                chunk = records[i : i + batch_size]
+                result = conn.execute(text(sql), chunk)
+                total += result.rowcount
+        return total
+
     # ------------------------------------------------------------------
     # Read
     # ------------------------------------------------------------------

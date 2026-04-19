@@ -302,39 +302,24 @@ def main() -> None:
         print(f"\n[Evolver] 完成: {sum(approvals)}/{len(approvals)} 建议已确认")
 
     elif args.command == "server":
-        print(f"Starting server on port {args.port} …")
+        import logging
         import uvicorn
+        from src.data.mysql_client import MySQLClient
+
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+        # Ensure schema is up to date before starting
+        try:
+            db = MySQLClient(config.mysql)
+            db.init_schema()
+        except Exception as exc:
+            print(f"Error: MySQL connection failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+
         from src.server.app import app
-        from src.server.scheduler.scheduler import TradingScheduler
-        from src.server.price_monitor import PriceMonitor
-        from src.server.chat_store import ChatStore
 
-        # Initialize chat store (creates data/chat.db)
-        ChatStore()
-
-        # Initialize scheduler and price monitor
-        scheduler = TradingScheduler()
-        tc = None
-        try:
-            from src.data.tushare_client import TushareClient
-            tc = TushareClient(config.tushare)
-            scheduler.set_tushare_client(tc)
-        except Exception as e:
-            print(f"Warning: TushareClient init failed: {e}")
-
-        price_monitor = PriceMonitor(tc, config) if tc else None
-
-        # Start scheduler and price monitor
-        scheduler.start()
-        if price_monitor:
-            price_monitor.start()
-
-        try:
-            uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
-        finally:
-            scheduler.shutdown()
-            if price_monitor:
-                price_monitor.stop()
+        print(f"Starting server on port {args.port} …")
+        uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
 
 
 if __name__ == "__main__":
